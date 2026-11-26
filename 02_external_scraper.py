@@ -27,10 +27,8 @@ from urllib3.util.retry import Retry
 BASE_URL = "https://books.toscrape.com/"
 ALLOWED_HOST = "books.toscrape.com"
 RATING_VALUES = {"One": 1, "Two": 2, "Three": 3, "Four": 4, "Five": 5}
-DEFAULT_DB_HOST = "aws-0-eu-west-1.pooler.supabase.com"
 DEFAULT_DB_PORT = 5432
 DEFAULT_DB_NAME = "postgres"
-DEFAULT_DB_USER = "postgres.zthtdcceloxwcpimrqwb"
 
 
 @dataclass(frozen=True)
@@ -311,6 +309,23 @@ def database_connection_from_environment() -> dict[str, Any]:
             "or use --dry-run."
         )
 
+    host = os.environ.get("SUPABASE_DB_HOST", "").strip()
+    user = os.environ.get("SUPABASE_DB_USER", "").strip()
+    missing = [
+        name
+        for name, value in (
+            ("SUPABASE_DB_HOST", host),
+            ("SUPABASE_DB_USER", user),
+        )
+        if not value
+    ]
+    if missing:
+        raise ValueError(
+            "Missing required database configuration: "
+            + ", ".join(missing)
+            + ". Copy the pooler values from Supabase Connect."
+        )
+
     port_value = os.environ.get("SUPABASE_DB_PORT", str(DEFAULT_DB_PORT)).strip()
     try:
         port = int(port_value)
@@ -318,10 +333,10 @@ def database_connection_from_environment() -> dict[str, Any]:
         raise ValueError("SUPABASE_DB_PORT must be a whole number.") from exc
 
     return {
-        "host": os.environ.get("SUPABASE_DB_HOST", DEFAULT_DB_HOST).strip(),
+        "host": host,
         "port": port,
         "dbname": os.environ.get("SUPABASE_DB_NAME", DEFAULT_DB_NAME).strip(),
-        "user": os.environ.get("SUPABASE_DB_USER", DEFAULT_DB_USER).strip(),
+        "user": user,
         "password": password,
     }
 

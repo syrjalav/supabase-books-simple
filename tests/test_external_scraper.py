@@ -122,17 +122,31 @@ class ScraperTests(unittest.TestCase):
         self.assertEqual(connection.fake_cursor.rows[0]["upc"], "abc123")
         self.assertIn("on conflict (upc) do update", connection.fake_cursor.upsert_query)
 
-    def test_database_password_is_passed_separately_from_uri(self):
+    def test_database_password_and_settings_are_passed_separately_from_uri(self):
         environment = {
             "SUPABASE_DB_PASSWORD": "p@ssword/with:symbols",
+            "SUPABASE_DB_HOST": "aws-0-eu-west-1.pooler.supabase.com",
+            "SUPABASE_DB_USER": "postgres.example",
         }
         with patch.dict(scraper.os.environ, environment, clear=True):
             settings = scraper.database_connection_from_environment()
 
-        self.assertEqual(settings["host"], scraper.DEFAULT_DB_HOST)
+        self.assertEqual(
+            settings["host"], "aws-0-eu-west-1.pooler.supabase.com"
+        )
         self.assertEqual(settings["port"], scraper.DEFAULT_DB_PORT)
-        self.assertEqual(settings["user"], scraper.DEFAULT_DB_USER)
+        self.assertEqual(settings["user"], "postgres.example")
         self.assertEqual(settings["password"], "p@ssword/with:symbols")
+
+    def test_database_host_and_user_are_required(self):
+        environment = {
+            "SUPABASE_DB_PASSWORD": "hidden",
+        }
+        with patch.dict(scraper.os.environ, environment, clear=True):
+            with self.assertRaisesRegex(
+                ValueError, "SUPABASE_DB_HOST, SUPABASE_DB_USER"
+            ):
+                scraper.database_connection_from_environment()
 
 
 if __name__ == "__main__":

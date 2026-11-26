@@ -1,37 +1,54 @@
-# Two-script Supabase book scraper
+# Books to Scrape - Supabase collector
 
-This version is deliberately simple:
+A command-line Python project that collects book data from [Books to Scrape](https://books.toscrape.com/), stores it in Supabase Postgres, and presents results through the terminal and Supabase's SQL/Table Editor.
 
-1. Run `01_setup_supabase.sql` once in Supabase SQL Editor.
-2. Run `02_external_scraper.py` manually from a terminal, IDE, scheduled job, or
-   another trusted program.
+![Verified dry-run output from the Books to Scrape collector](docs/books-dry-run-demo.png)
 
-The website is scraped from HTML. It does not use a Books to Scrape API or the
-Supabase Data API. The Python program connects directly to PostgreSQL.
+## Purpose
 
-## 1. Create the Supabase table
+The project demonstrates a complete data workflow: collect HTML pages, parse structured book fields, validate and transform them, persist records in a relational database, and inspect the result through a simple interface. The deliberately small design keeps the collection and database decisions easy to explain.
 
-Open your Supabase project, choose **SQL Editor**, paste the complete contents of
-`01_setup_supabase.sql`, and click **Run**.
+## Data collection
 
-Successful setup returns a row similar to:
+`02_external_scraper.py` requests listing and product pages from `https://books.toscrape.com/`. The site is an educational scraping sandbox; no private or user-specific data is collected.
 
-```text
-status | existing_book_rows
-ready  | 0
-```
+For each selected book, the parser obtains:
 
-The SQL is idempotent, so running it again does not delete existing books. It
-enables row-level security and removes browser access for the `anon` and
-`authenticated` roles. The external program uses a trusted PostgreSQL connection.
+- UPC
+- title
+- price including tax, converted to integer pence
+- stock count
+- one-to-five star rating
+- category
+- UTC scrape time
 
-The table is intentionally compact: `id`, `upc`, `name`, `price_pence`,
-`currency`, `stock_count`, `rating`, `category`, and two scrape timestamps. It
-does not store product URLs, descriptions, images, review counts, or tax details.
+The HTTP client restricts requests to the expected HTTPS host, identifies itself with a learning-project user agent, waits between requests, retries temporary failures, and supports a configurable timeout. `--limit` and `--start-page` keep collection controlled.
 
-## 2. Install Python dependencies
+## Data persistence
 
-Python 3.11 or newer is recommended.
+`01_setup_supabase.sql` creates `public.books` with a numeric primary key, a unique UPC, validation constraints, timestamps, and indexes for name and category. The script enables row-level security and revokes Data API access from `anon` and `authenticated` because this project uses a trusted direct PostgreSQL connection instead of a browser client.
+
+Repeated runs perform a parameterized `INSERT ... ON CONFLICT` upsert by UPC. Existing rows are updated, `first_scraped_at` is preserved, and `last_scraped_at` records the latest collection. The batch runs in one database transaction. An optional JSON preview can also be written locally; `books.json` is ignored by Git.
+
+## User interaction and presentation
+
+The terminal is the collection interface: the user chooses the limit, starting page, delay, timeout, dry-run mode, and optional JSON output. Progress and parsed book summaries are printed as the scraper runs.
+
+The database result can be viewed in Supabase Table Editor or with the verification query below in SQL Editor. This is the presentation interface for the stored data; a separate public web application is not included.
+
+## Setup, configuration, and run
+
+### Requirements
+
+- Python 3.11 or newer
+- A Supabase project only for database-writing runs
+- Internet access to Books to Scrape
+
+### 1. Create the table
+
+In the Supabase Dashboard, open **SQL Editor**, paste the complete contents of `01_setup_supabase.sql`, and select **Run**. The setup is idempotent and does not delete existing books.
+
+### 2. Install pinned dependencies
 
 ```bash
 python3 -m venv .venv
@@ -45,65 +62,46 @@ On Windows PowerShell, activate with:
 .\.venv\Scripts\Activate.ps1
 ```
 
-## 3. Test scraping without touching Supabase
+### 3. Verify collection without a database
 
 ```bash
 python 02_external_scraper.py --limit 5 --dry-run
 ```
 
-This downloads and parses five books, displays them, and makes no database
-connection. You can also save the test result:
+To save the same preview as JSON:
 
 ```bash
 python 02_external_scraper.py --limit 5 --dry-run --json-output books.json
 ```
 
-## 4. Connect the external program to Supabase
+### 4. Configure Supabase safely
 
-This copy is already configured with this project's verified **Session pooler**
-host, port, database name, and username. You only need the Supabase database
-password. The password is passed to PostgreSQL separately, so characters such as
-`@`, `#`, `/`, and `:` do not need URL encoding.
+Open **Connect** in the Supabase Dashboard and copy the Session pooler values. Set them only in the local shell or a secret manager; do not commit a real host, project reference, password, or connection string.
 
-Run:
+```bash
+export SUPABASE_DB_HOST="aws-0-REGION.pooler.supabase.com"
+export SUPABASE_DB_PORT="5432"
+export SUPABASE_DB_NAME="postgres"
+export SUPABASE_DB_USER="postgres.PROJECT_REF"
+```
+
+The host and user variables are required. Port defaults to `5432` and database name defaults to `postgres`. A correctly encoded `SUPABASE_DB_URL` may be used instead for advanced setups.
+
+### 5. Collect and store books
 
 ```bash
 python 02_external_scraper.py --limit 5
 ```
 
-The script asks:
+The script prompts for the database password with hidden input and does not save it. For automation, supply `SUPABASE_DB_PASSWORD` through the runner's secret settings.
 
-```text
-Paste your Supabase database password (input hidden):
-```
-
-Paste the password and press Enter. Nothing appears while you paste because the
-input is hidden. The script does not save the password.
-
-For an automated run, provide `SUPABASE_DB_PASSWORD` through the IDE or hosting
-service's secret/environment settings. Do not put it in source code or Git.
-`SUPABASE_DB_HOST`, `SUPABASE_DB_PORT`, `SUPABASE_DB_NAME`, and
-`SUPABASE_DB_USER` can override the included project settings. A correctly
-URL-encoded `SUPABASE_DB_URL` remains supported for advanced use.
-
-To scrape more books later:
-
-```bash
-python 02_external_scraper.py --limit 50
-```
-
-For batches, select a starting listing page:
+For a later batch:
 
 ```bash
 python 02_external_scraper.py --limit 20 --start-page 6
 ```
 
-Repeated runs upsert by UPC. Existing books are updated instead of duplicated,
-while `first_scraped_at` remains unchanged and `last_scraped_at` is refreshed.
-
-## 5. Verify in Supabase
-
-Run this in SQL Editor:
+### 6. View the stored data
 
 ```sql
 select
@@ -118,13 +116,40 @@ from public.books
 order by last_scraped_at desc, name;
 ```
 
-## Useful commands
+## Tests
 
 ```bash
-python 02_external_scraper.py --help
 python -m unittest discover -s tests -v
 ```
 
-The scraper restricts requests to `books.toscrape.com`, waits between requests,
-retries temporary failures, uses parameterized SQL, and performs each database
-batch in a transaction.
+The tests use saved HTML fixtures and a mocked database connection, so they do not scrape the live site or modify Supabase.
+
+## Project structure
+
+| File | Purpose |
+| --- | --- |
+| `01_setup_supabase.sql` | Idempotent table, constraints, indexes, RLS, and grants |
+| `02_external_scraper.py` | CLI, HTTP collection, HTML parsing, validation, JSON preview, and database upsert |
+| `requirements.txt` | Pinned Python dependencies |
+| `tests/test_external_scraper.py` | Parser, configuration, and parameterized-upsert tests |
+
+## Learning, challenge, and solution
+
+The main challenge visible in the implementation is turning inconsistent page text into database-safe values while keeping repeated collections reliable. The solution separates listing parsing from product parsing, converts prices to integer pence, extracts stock with a regular expression, validates required fields, and uses the stable UPC as an atomic upsert key. The project also demonstrates why secrets should be supplied separately from code and why direct database access, Data API permissions, and RLS are different security layers.
+
+This is an evidence-based summary of the implementation. The student should be prepared to explain these decisions in their own words and personalize the reflection if their own learning emphasis was different.
+
+## Limitations
+
+- HTML selectors depend on the current Books to Scrape page structure.
+- A live run requires network access; a database-writing run also requires a configured Supabase project.
+- The project presents results through a CLI and Supabase's interface rather than a custom GUI.
+- The default connection uses the Supabase pooler account supplied by the project owner. A production system should use a dedicated least-privilege database role.
+- Tests mock the database. This repository review verified the live dry-run, but did not write to the user's Supabase project because no password was requested or handled.
+- The scraper processes at most 1,000 books per invocation and does not schedule itself.
+
+## Assistance, tools, and external code
+
+This project was created and reviewed with assistance from ChatGPT/Codex for planning, code generation and refinement, test creation, documentation, and repository review. External packages are Beautiful Soup, Requests, Psycopg, and their transitive dependencies, all installed from the pinned `requirements.txt`. Data comes from Books to Scrape and persistence uses Supabase/PostgreSQL. The implementation follows the documented interfaces of those projects; no credentials are included.
+
+Built for the Applied Programming & AI Fundamentals course.
