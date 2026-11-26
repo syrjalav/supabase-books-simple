@@ -135,9 +135,17 @@ The tests use saved HTML fixtures and a mocked database connection, so they do n
 
 ## Learning, challenge, and solution
 
-The main challenge visible in the implementation is turning inconsistent page text into database-safe values while keeping repeated collections reliable. The solution separates listing parsing from product parsing, converts prices to integer pence, extracts stock with a regular expression, validates required fields, and uses the stable UPC as an atomic upsert key. The project also demonstrates why secrets should be supplied separately from code and why direct database access, Data API permissions, and RLS are different security layers.
+### What I learned
 
-This is an evidence-based summary of the implementation. The student should be prepared to explain these decisions in their own words and personalize the reflection if their own learning emphasis was different.
+I learned that web scraping is a powerful way to collect data when it is not conveniently available through an API or downloadable dataset. I also learned how information in HTML pages can be selected, cleaned, converted into structured fields, and then stored in a database.
+
+### Challenge I encountered
+
+I started the project with no previous knowledge of web scraping, so I first had to understand how websites are structured and how a scraper can move from listing pages to individual product pages. Turning page text such as prices, stock information, ratings, and categories into reliable database values was also new to me.
+
+### How I approached it
+
+I learned the basics by watching YouTube videos, reading online guides, and using ChatGPT for explanations and implementation help. I then tested the scraper with small dry runs, checked the returned book data, and gradually connected the working collection process to Supabase.
 
 ## Limitations
 
