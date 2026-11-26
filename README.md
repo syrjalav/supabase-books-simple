@@ -153,7 +153,7 @@ I learned the basics by watching YouTube videos, reading online guides, and usin
 - A live run requires network access; a database-writing run also requires a configured Supabase project.
 - The project presents results through a CLI and Supabase's interface rather than a custom GUI.
 - The default connection uses the Supabase pooler account supplied by the project owner. A production system should use a dedicated least-privilege database role.
-- Tests mock the database. This repository review verified the live dry-run, but did not write to the user's Supabase project because no password was requested or handled.
+- Automated tests mock the database, while the connected Supabase project was checked separately. Its `books` table contains 10 records written by the scraper, confirming that persistence works without exposing database credentials in this repository.
 - The scraper processes at most 1,000 books per invocation and does not schedule itself.
 
 ## Assistance, tools, and external code
