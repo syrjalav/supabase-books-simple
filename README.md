@@ -132,6 +132,7 @@ The tests use saved HTML fixtures and a mocked database connection, so they do n
 | `02_external_scraper.py` | CLI, HTTP collection, HTML parsing, validation, JSON preview, and database upsert |
 | `requirements.txt` | Pinned Python dependencies |
 | `tests/test_external_scraper.py` | Parser, configuration, and parameterized-upsert tests |
+| `AUDIT.md` | Sanitized publication audit, fixes, and repeat checks |
 
 ## Learning, challenge, and solution
 
